@@ -1,0 +1,6 @@
+{
+  "name": "AI StudyMate",
+  "description": "Asisten Belajar Cerdas Berbasis Materi Kuliah untuk Mahasiswa dengan Quiz, Flashcard, Latihan Mandiri, dan Pembahasan Soal AI",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
