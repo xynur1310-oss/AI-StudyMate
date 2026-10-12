@@ -111,8 +111,24 @@ export const MaterialUpload: React.FC<MaterialUploadProps> = ({
       return;
     }
 
-    if (file.size > 30 * 1024 * 1024) {
-      setErrorMessage('Ukuran berkas melebihi batas 30MB.');
+    const isTxt = file.name.toLowerCase().endsWith('.txt');
+    const maxBinaryBytes = 3.3 * 1024 * 1024; // 3.3 MB binary => ~4.4 MB base64 (within Vercel 4.5MB limit)
+    const maxTextBytes = 4.0 * 1024 * 1024; // 4.0 MB plain text
+
+    if (!isTxt && file.size > maxBinaryBytes) {
+      const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
+      setErrorMessage(
+        `Ukuran berkas (${sizeMb} MB) melebihi batas fungsi serverless Vercel (maksimal 3.3 MB untuk dokumen PDF/DOCX). Tips: Silakan ekstrak bab atau halaman yang ingin dipelajari, simpan sebagai PDF ringkas, atau salin-tempel langsung di tab 'Teks Manual'.`
+      );
+      setSelectedFile(null);
+      return;
+    }
+
+    if (isTxt && file.size > maxTextBytes) {
+      const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
+      setErrorMessage(
+        `Ukuran berkas teks (${sizeMb} MB) melebihi batas serverless (maksimal 4 MB). Silakan kurangi ukuran dokumen.`
+      );
       setSelectedFile(null);
       return;
     }
@@ -639,8 +655,11 @@ export const MaterialUpload: React.FC<MaterialUploadProps> = ({
                   <span className="px-2 py-0.5 bg-slate-100 rounded-md">DOCX</span>
                   <span className="px-2 py-0.5 bg-slate-100 rounded-md">TXT</span>
                   <span className="px-2 py-0.5 bg-slate-100 rounded-md">PPTX</span>
-                  <span>(Maks. 30MB)</span>
+                  <span>(Maks. 3.3MB • Mode Serverless)</span>
                 </div>
+                <p className="mt-2 text-[11px] text-slate-400">
+                  Untuk diktat/buku teks tebal, gunakan tab <span className="font-semibold text-indigo-600">Teks Manual</span>
+                </p>
               </div>
             ) : (
               <div className="border border-slate-200 rounded-2xl p-5 bg-slate-50">
