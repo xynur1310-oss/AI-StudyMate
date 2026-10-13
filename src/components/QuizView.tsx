@@ -50,7 +50,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
   ]);
   const [shuffleOrder, setShuffleOrder] = useState<boolean>(true);
   const [practiceMode, setPracticeMode] = useState<boolean>(false);
-  const [selectedModel, setSelectedModel] = useState<string>('gemini-3.5-flash-lite');
+  const [selectedModel, setSelectedModel] = useState<string>('gemini-3.1-flash-lite');
 
   // Generator & State
   const [isGenerating, setIsGenerating] = useState(false);
@@ -406,7 +406,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
                 onChange={(e) => setSelectedModel(e.target.value)}
                 className="px-2.5 py-1 text-xs font-bold rounded-lg border border-slate-200 bg-slate-50 text-indigo-700 focus:outline-hidden"
               >
-                <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Cepat ~1.2s)</option>
+                <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (Cepat ~1.2s)</option>
                 <option value="gemini-3.8-flash">gemini-3.8-flash (Thinking Low)</option>
               </select>
             </div>

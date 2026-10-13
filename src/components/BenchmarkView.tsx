@@ -20,7 +20,7 @@ import { BenchmarkRunResult } from '../types';
 
 export const BenchmarkView: React.FC = () => {
   const [selectedScenario, setSelectedScenario] = useState<'short' | 'medium' | 'long'>('short');
-  const [selectedModel, setSelectedModel] = useState<string>('gemini-3.5-flash-lite');
+  const [selectedModel, setSelectedModel] = useState<string>('gemini-3.1-flash-lite');
   const [isRunning, setIsRunning] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [currentStep, setCurrentStep] = useState<string>('');
@@ -137,7 +137,7 @@ export const BenchmarkView: React.FC = () => {
               onChange={(e) => setSelectedModel(e.target.value)}
               className="px-3 py-1.5 text-xs font-bold rounded-xl border border-slate-200 bg-slate-50 text-indigo-700 focus:outline-hidden"
             >
-              <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Ultra Cepat ~1s)</option>
+              <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (Ultra Cepat ~1s)</option>
               <option value="gemini-3.8-flash">gemini-3.8-flash (Thinking Low)</option>
             </select>
           </div>

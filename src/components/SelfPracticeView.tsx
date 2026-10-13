@@ -29,7 +29,7 @@ export const SelfPracticeView: React.FC<SelfPracticeViewProps> = ({
   preselectedChapter,
 }) => {
   const [selectedChapter, setSelectedChapter] = useState<string>(preselectedChapter || 'all');
-  const [selectedModel, setSelectedModel] = useState<string>('gemini-3.5-flash-lite');
+  const [selectedModel, setSelectedModel] = useState<string>('gemini-3.1-flash-lite');
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
   const [questions, setQuestions] = useState<PracticeQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);

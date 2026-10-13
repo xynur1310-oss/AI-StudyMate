@@ -57,7 +57,7 @@ const ai = new GoogleGenAI({
 });
 
 // Default models
-const FAST_MODEL = 'gemini-3.5-flash-lite';
+const FAST_MODEL = 'gemini-3.1-flash-lite';
 const BALANCED_MODEL = 'gemini-3.8-flash';
 
 // Secret key for tamper-proof stateless session tokens (cross-instance serverless resilience)
@@ -348,6 +348,62 @@ function evaluateAnswerCorrectness(userAns: string, question: any): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Question Text De-duplicator
+// Cleans LLM-generated repetitive formulas and duplicate premise sentences
+// ---------------------------------------------------------------------------
+function cleanRepeatedQuestionText(text: string): string {
+  if (!text || typeof text !== 'string') return '';
+  let s = text.trim();
+
+  // 1. Remove duplicate adjacent formulas where one is raw and one has $:
+  s = s.replace(/(\$[^$]+\$)\s*([a-zA-Z](?:\([a-zA-Z0-9\s○oO]+\))?\s*=\s*[-+0-9a-zA-Z^()\s*/.]+)/g, (match, p1, p2) => {
+    const rawP1 = p1.slice(1, -1).trim().replace(/\s+/g, '');
+    const rawP2 = p2.trim().replace(/\s+/g, '');
+    if (rawP1 === rawP2) return p1;
+    return match;
+  });
+
+  s = s.replace(/([a-zA-Z](?:\([a-zA-Z0-9\s○oO]+\))?\s*=\s*[-+0-9a-zA-Z^()\s*/.]+)\s*(\$[^$]+\$)/g, (match, p1, p2) => {
+    const rawP1 = p1.trim().replace(/\s+/g, '');
+    const rawP2 = p2.slice(1, -1).trim().replace(/\s+/g, '');
+    if (rawP1 === rawP2) return p2;
+    return match;
+  });
+
+  // 2. Remove identical consecutive formula repetitions:
+  s = s.replace(/(\b[a-zA-Z](?:\([a-zA-Z0-9\s○oO]+\))?\s*=\s*[-+0-9a-zA-Z^()\s*/.]+?)\s+\1\b/g, '$1');
+
+  // 3. Remove identical repeated consecutive phrases (length >= 10):
+  s = s.replace(/(\b[a-zA-Z\s]{4,}?(?:[a-zA-Z]\([^)]+\)\s*=\s*[-+0-9a-zA-Z^()\s*/.]+)?)\s+\1\b/gi, '$1');
+
+  // 4. Handle sentence-level duplicate prefix or repeated full sentences:
+  const sentences = s.split(/(?<=[.?!])\s+/);
+  if (sentences.length > 1) {
+    const deduped: string[] = [];
+    for (let i = 0; i < sentences.length; i++) {
+      const curr = sentences[i].trim();
+      const prevIdx = deduped.length - 1;
+      if (prevIdx >= 0) {
+        const prev = deduped[prevIdx];
+        if (curr.toLowerCase() === prev.toLowerCase()) {
+          continue;
+        }
+        const prevClean = prev.toLowerCase().replace(/[.?!]+$/, '').trim();
+        const currClean = curr.toLowerCase().replace(/[.?!]+$/, '').trim();
+        if (currClean.startsWith(prevClean)) {
+          deduped[prevIdx] = curr;
+          continue;
+        }
+      }
+      deduped.push(curr);
+    }
+    s = deduped.join(' ');
+  }
+
+  return s.trim();
+}
+
+// ---------------------------------------------------------------------------
 // Quiz Question Normalization & Integrity Verifier
 // Guarantees stable option IDs, consistent correct answers, and zero discrepancies
 // ---------------------------------------------------------------------------
@@ -360,7 +416,7 @@ function validateAndNormalizeQuizQuestions(rawQuestions: any[]): any[] {
     const type = ['multiple_choice', 'true_false', 'short_answer'].includes(q.type)
       ? q.type
       : 'multiple_choice';
-    const question = String(q.question || '').trim();
+    const question = cleanRepeatedQuestionText(String(q.question || ''));
     let explanation = String(q.explanation || '').trim();
     const chapterRef = q.chapterRef || '';
     const difficulty = q.difficulty || 'sedang';
@@ -904,10 +960,11 @@ ${chapterTitle ? `Fokus khusus Bab: "${chapterTitle}".` : 'Mencakup seluruh mate
 Tipe soal yang harus dibuat: ${typeDescriptions.join(', ')}.
 
 PANDUAN KETAT AKURASI AKADEMIK, SOAL MATEMATIKA, & KONSISTENSI KUNCI JAWABAN:
-1. FORMAT TEKS & SPASI:
-   - Pastikan teks pertanyaan ("question"), opsi, dan pembahasan ("explanation") memiliki SPASI LENGKAP antar kata, simbol matematika, dan kalimat.
-   - Jangan pernah menyatukan kata-kata tanpa spasi (misalnya: dilarang menulis "Grafikfungsikuadrat" atau "Jikakoefisienapadafungsi", wajib beri spasi: "Grafik fungsi kuadrat" atau "Jika koefisien a pada fungsi").
-   - Jika menuliskan rumus matematika di dalam kalimat, apit rumus dengan simbol dolar tunggal seperti $f(x) = x^2 - 5x + 6$ atau $f(x) = 0$ agar terpisah jelas dari teks sekitarnya.
+1. FORMAT TEKS, SPASI, & ANTI-DUPLIKASI (PENTING):
+   - DILARANG KERAS MENGULANG RUMUS ATAU PERTANYAAN: Tuliskan setiap rumus matematika dan kalimat soal tepat 1 (satu) kali.
+   - JANGAN PERNAH menuliskan rumus yang sama berturut-turut (misalnya: DILARANG menulis "$f(x) = x^2 - 4x - 5$ f(x) = x^2 - 4x - 5" atau mengulang premis soal dua kali).
+   - Pastikan teks pertanyaan ("question"), opsi, dan pembahasan ("explanation") memiliki SPASI LENGKAP antar kata, simbol matematika, dan kalimat (contoh: "Grafik fungsi kuadrat", BUKAN "Grafikfungsikuadrat").
+   - Jika menuliskan rumus matematika di dalam kalimat, cukup apit rumus dengan simbol dolar tunggal $...$ SATU KALI SAJA (contoh: "Tentukan titik potong fungsi kuadrat $f(x) = x^2 - 5x + 6$ terhadap sumbu X.").
    - Pada "explanation", susun langkah-langkah pembahasan SECARA VERTIKAL KE BAWAH dengan penomoran langkah yang jelas dipisahkan baris baru (\n), contoh:
      "Langkah Penyelesaian:\n1. Tentukan syarat titik potong terhadap sumbu x, yaitu f(x) = 0.\n2. Substitusikan fungsi kuadrat: x^2 - 5x + 6 = 0.\n3. Faktorkan persamaan kuadrat: (x - 2)(x - 3) = 0.\n4. Diperoleh nilai x = 2 atau x = 3.\nJadi, titik potong terhadap sumbu x adalah (2, 0) dan (3, 0)."
 2. Pilihan Ganda (multiple_choice):

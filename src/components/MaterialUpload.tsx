@@ -43,7 +43,7 @@ export const MaterialUpload: React.FC<MaterialUploadProps> = ({
   const [manualTitle, setManualTitle] = useState('');
   const [manualSubject, setManualSubject] = useState('');
   const [manualText, setManualText] = useState('');
-  const [selectedModel, setSelectedModel] = useState<string>('gemini-3.5-flash-lite');
+  const [selectedModel, setSelectedModel] = useState<string>('gemini-3.1-flash-lite');
   const [bypassCache, setBypassCache] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -531,7 +531,7 @@ export const MaterialUpload: React.FC<MaterialUploadProps> = ({
               onChange={(e) => setSelectedModel(e.target.value)}
               className="px-2.5 py-1 text-xs font-bold rounded-lg border border-slate-200 bg-white text-indigo-700 focus:outline-hidden"
             >
-              <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Ultra Cepat ~1.1s)</option>
+              <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (Ultra Cepat ~1.1s)</option>
               <option value="gemini-3.8-flash">gemini-3.8-flash (Thinking Low ~2.5s)</option>
             </select>
           </div>
