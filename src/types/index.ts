@@ -51,13 +51,17 @@ export interface QuizQuestion {
   id: string;
   type: QuizType;
   question: string;
-  options?: string[]; // For multiple choice
+  options?: string[]; // For multiple choice (clean labels without stray A./B.)
+  correctOptionId?: string; // e.g. 'A' | 'B' | 'C' | 'D' for multiple_choice, 'Benar' | 'Salah' for true_false
   correctAnswer?: string; // Revealed only after submission or explicit check
   explanation?: string; // Revealed only after submission or explicit check
   chapterRef?: string; // Reference to chapter in material
   difficulty: QuizDifficulty;
   userAnswer?: string;
+  userOptionId?: string; // e.g. 'A' | 'B' | 'C' | 'D' selected by user
   isCorrect?: boolean;
+  acceptedAnswers?: string[]; // Normalized acceptable answers for short answer
+  mathSolutionSteps?: string[]; // Structured step-by-step mathematical derivation
 }
 
 export interface QuizResult {

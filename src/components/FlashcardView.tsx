@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { MaterialAnalysis, Flashcard, FlashcardMastery, TimingStats } from '../types';
 import { Storage } from '../utils/storage';
+import { MathRenderer } from './MathRenderer';
 
 interface FlashcardViewProps {
   material: MaterialAnalysis | null;
@@ -369,9 +370,9 @@ export const FlashcardView: React.FC<FlashcardViewProps> = ({
                   </span>
                 </div>
 
-                <div className="my-auto py-6 text-center">
-                  <h3 className="text-xl sm:text-2xl font-black text-slate-900 leading-snug tracking-tight">
-                    {currentCard.front}
+                <div className="my-auto py-6 text-center max-w-xl mx-auto w-full px-2">
+                  <h3 className="text-xl sm:text-2xl font-black text-slate-900 leading-snug tracking-tight overflow-x-auto">
+                    <MathRenderer content={currentCard.front} />
                   </h3>
                   {currentCard.chapterRef && (
                     <span className="inline-block mt-3 text-xs font-semibold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
@@ -398,10 +399,10 @@ export const FlashcardView: React.FC<FlashcardViewProps> = ({
                   </span>
                 </div>
 
-                <div className="my-auto py-6 text-center">
-                  <p className="text-base sm:text-lg font-medium text-white leading-relaxed max-w-lg mx-auto">
-                    {currentCard.back}
-                  </p>
+                <div className="my-auto py-6 text-center max-w-xl mx-auto w-full px-2">
+                  <div className="text-base sm:text-lg font-medium text-white leading-relaxed overflow-x-auto">
+                    <MathRenderer content={currentCard.back} />
+                  </div>
                 </div>
 
                 <div className="text-center text-[11px] text-indigo-300">

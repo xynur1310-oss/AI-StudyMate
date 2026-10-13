@@ -179,27 +179,306 @@ function resolveQuizSession(quizSessionId: string): any[] | null {
   return null;
 }
 
-// Helper: Evaluate answer correctness securely
-function evaluateAnswerCorrectness(userAns: string, correctAns: string, type: string): boolean {
-  if (!userAns) return false;
-  const cleanUser = userAns.trim().toLowerCase();
-  const cleanCorrect = (correctAns || '').trim().toLowerCase();
-
-  if (type === 'multiple_choice' || type === 'true_false') {
-    const userStripped = cleanUser.replace(/^[a-d]\.\s*/i, '');
-    const correctStripped = cleanCorrect.replace(/^[a-d]\.\s*/i, '');
-    return (
-      cleanUser === cleanCorrect ||
-      userStripped === correctStripped ||
-      cleanUser.startsWith(cleanCorrect.slice(0, 1))
-    );
-  } else {
-    if (cleanUser === cleanCorrect) return true;
-    const words = cleanCorrect.split(/\s+/).filter((w) => w.length > 2);
-    if (words.length <= 1) return cleanUser.includes(cleanCorrect);
-    const matches = words.filter((w) => cleanUser.includes(w));
-    return matches.length >= Math.ceil(words.length * 0.6);
+// ---------------------------------------------------------------------------
+// Math Evaluator & Algebraic Polynomial Equivalence Engine
+// Performs independent multi-point polynomial identity testing (Schwartz-Zippel method)
+// ---------------------------------------------------------------------------
+function evaluateMathExprAtX(expr: string, xVal: number): number | null {
+  try {
+    if (!expr || typeof expr !== 'string') return null;
+    let clean = expr.trim().toLowerCase();
+    // Remove function notation: f(x) =, g(x) =, (g o f)(x) =, y =
+    clean = clean.replace(/^(?:\([a-z]\s*o\s*[a-z]\)|[a-z])\s*\([a-z]\)\s*=\s*/i, '');
+    clean = clean.replace(/^[a-z]\s*=\s*/i, '');
+    // Standardize power operator ^ to **
+    clean = clean.replace(/\^/g, '**');
+    // Insert multiplication between coefficients and variables: e.g. 2x -> 2*x, 4x -> 4*x
+    clean = clean.replace(/(\d+)\s*([x])/gi, '$1*$2');
+    clean = clean.replace(/([x])\s*(\d+)/gi, '$1*$2');
+    // Replace variable x with (xVal)
+    const substituted = clean.replace(/\bx\b/gi, `(${xVal})`);
+    // Safe validation: only allow numbers, math operators, parens, and standard symbols
+    if (!/^[\d\s+\-*/().%*^]+$/.test(substituted)) {
+      return null;
+    }
+    const fn = new Function(`return (${substituted});`);
+    const val = fn();
+    return typeof val === 'number' && !isNaN(val) && isFinite(val) ? val : null;
+  } catch {
+    return null;
   }
+}
+
+function areMathExpressionsEquivalent(expr1: string, expr2: string): boolean {
+  if (!expr1 || !expr2) return false;
+  const norm1 = expr1.replace(/\s+/g, '').toLowerCase();
+  const norm2 = expr2.replace(/\s+/g, '').toLowerCase();
+  if (norm1 === norm2) return true;
+
+  // Test across multiple sample points for variable x
+  const testPoints = [-3, -1, 0, 1, 2, 4, 7];
+  let successfulMatches = 0;
+  for (const pt of testPoints) {
+    const v1 = evaluateMathExprAtX(expr1, pt);
+    const v2 = evaluateMathExprAtX(expr2, pt);
+    if (v1 === null || v2 === null) {
+      return false; // Unable to evaluate numerically safely
+    }
+    if (Math.abs(v1 - v2) > 1e-6) {
+      return false; // Point values differ => mathematically distinct
+    }
+    successfulMatches++;
+  }
+  return successfulMatches === testPoints.length;
+}
+
+// ---------------------------------------------------------------------------
+// Robust Multi-Type Answer Correctness Evaluator
+// ---------------------------------------------------------------------------
+function evaluateAnswerCorrectness(userAns: string, question: any): boolean {
+  if (!userAns || !question) return false;
+  const rawUser = String(userAns).trim();
+  const cleanUser = rawUser.toLowerCase();
+  const rawCorrect = String(question.correctAnswer || '').trim();
+  const cleanCorrect = rawCorrect.toLowerCase();
+  const qType = question.type;
+
+  if (qType === 'multiple_choice') {
+    const correctLetter = String(question.correctOptionId || '').trim().toUpperCase();
+    const options: string[] = Array.isArray(question.options) ? question.options : [];
+    const letterKeys = ['A', 'B', 'C', 'D'];
+
+    // Helper: strip option prefix "A. ", "a) ", "(A)"
+    const stripPrefix = (s: string) =>
+      s.replace(/^[A-Da-d][.)]\s*/, '').replace(/^\([A-Da-d]\)\s*/, '').trim().toLowerCase();
+
+    const strippedUser = stripPrefix(cleanUser);
+    const strippedCorrect = stripPrefix(cleanCorrect);
+
+    // 1. Direct letter check: user submitted "A", "B", "C", "D"
+    const singleLetterMatch = rawUser.match(/^[A-Da-d]$/);
+    if (singleLetterMatch) {
+      const userLetter = singleLetterMatch[0].toUpperCase();
+      return !!correctLetter && userLetter === correctLetter;
+    }
+
+    // 2. Prefixed check: user submitted "A. g(x) = 2x^2 - 4x - 3"
+    const prefixMatch = rawUser.match(/^([A-Da-d])[.)]\s*(.*)$/);
+    if (prefixMatch) {
+      const userLetter = prefixMatch[1].toUpperCase();
+      if (correctLetter && userLetter === correctLetter) return true;
+      if (correctLetter && userLetter !== correctLetter) return false;
+    }
+
+    // 3. Exact normalized string match against correct answer
+    if (strippedUser === strippedCorrect) {
+      return true;
+    }
+
+    // 4. Distractor check: determine which option the user actually selected
+    for (let i = 0; i < options.length; i++) {
+      const optLetter = letterKeys[i] || String.fromCharCode(65 + i);
+      const optStripped = stripPrefix(options[i]);
+      if (strippedUser === optStripped) {
+        // User picked this specific option! Is this the correct option?
+        return optLetter === correctLetter || optStripped === strippedCorrect;
+      }
+    }
+
+    // 5. Mathematical equivalence check
+    if (areMathExpressionsEquivalent(strippedUser, strippedCorrect)) {
+      // Ensure it is NOT equivalent to any distractor
+      const isEquivToDistractor = options.some((opt, idx) => {
+        const optLetter = letterKeys[idx];
+        if (optLetter === correctLetter) return false;
+        return areMathExpressionsEquivalent(strippedUser, stripPrefix(opt));
+      });
+      if (!isEquivToDistractor) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  if (qType === 'true_false') {
+    const normalizeBool = (s: string) => {
+      const low = s.trim().toLowerCase();
+      if (['benar', 'true', 'b', 't', '1', 'ya'].includes(low)) return 'benar';
+      if (['salah', 'false', 's', 'f', '0', 'tidak'].includes(low)) return 'salah';
+      return low;
+    };
+    const userBool = normalizeBool(cleanUser);
+    const correctBool = normalizeBool(cleanCorrect);
+    return userBool === correctBool;
+  }
+
+  if (qType === 'short_answer') {
+    // Normalization: trim, lowercase, collapse whitespace
+    const normUser = cleanUser.replace(/\s+/g, ' ');
+    const normCorrect = cleanCorrect.replace(/\s+/g, ' ');
+
+    if (normUser === normCorrect) return true;
+
+    // Check acceptedAnswers if available
+    if (Array.isArray(question.acceptedAnswers)) {
+      for (const accepted of question.acceptedAnswers) {
+        const normAccepted = String(accepted).trim().toLowerCase().replace(/\s+/g, ' ');
+        if (normUser === normAccepted) return true;
+      }
+    }
+
+    // Pure numeric value comparison (e.g. 0.5 vs 1/2 or 5 vs 5.0)
+    const userNum = Number(normUser);
+    const correctNum = Number(normCorrect);
+    if (!isNaN(userNum) && !isNaN(correctNum) && Math.abs(userNum - correctNum) < 1e-6) {
+      return true;
+    }
+
+    // Mathematical formula equivalence
+    if (areMathExpressionsEquivalent(normUser, normCorrect)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  // Fallback for descriptive / essay responses
+  return cleanUser.length > 3 && cleanCorrect.length > 3 && cleanUser === cleanCorrect;
+}
+
+// ---------------------------------------------------------------------------
+// Quiz Question Normalization & Integrity Verifier
+// Guarantees stable option IDs, consistent correct answers, and zero discrepancies
+// ---------------------------------------------------------------------------
+function validateAndNormalizeQuizQuestions(rawQuestions: any[]): any[] {
+  if (!Array.isArray(rawQuestions)) return [];
+  const letterKeys = ['A', 'B', 'C', 'D'];
+
+  return rawQuestions.map((q, idx) => {
+    const id = q.id || `q_${Date.now()}_${idx}`;
+    const type = ['multiple_choice', 'true_false', 'short_answer'].includes(q.type)
+      ? q.type
+      : 'multiple_choice';
+    const question = String(q.question || '').trim();
+    let explanation = String(q.explanation || '').trim();
+    const chapterRef = q.chapterRef || '';
+    const difficulty = q.difficulty || 'sedang';
+
+    if (type === 'multiple_choice') {
+      let rawOptions: string[] = Array.isArray(q.options) ? q.options : [];
+      let cleanOptions = rawOptions.map((opt) =>
+        String(opt).replace(/^[A-Da-d][.)]\s*/, '').replace(/^\([A-Da-d]\)\s*/, '').trim()
+      );
+
+      if (cleanOptions.length < 2) {
+        cleanOptions = ['Opsi A', 'Opsi B', 'Opsi C', 'Opsi D'];
+      }
+
+      let correctOptionId = String(q.correctOptionId || '').trim().toUpperCase();
+      let rawCorrect = String(q.correctAnswer || '').trim();
+
+      // Check if rawCorrect is just 'A', 'B', 'C', or 'D'
+      if (!['A', 'B', 'C', 'D'].includes(correctOptionId)) {
+        const letterMatch = rawCorrect.match(/^[A-Da-d]$/);
+        if (letterMatch) {
+          correctOptionId = letterMatch[0].toUpperCase();
+        } else {
+          const prefixMatch = rawCorrect.match(/^([A-Da-d])[.)]\s*(.*)$/);
+          if (prefixMatch) {
+            correctOptionId = prefixMatch[1].toUpperCase();
+            rawCorrect = prefixMatch[2].trim();
+          }
+        }
+      }
+
+      // If correctOptionId still not found, search cleanOptions for rawCorrect
+      if (!['A', 'B', 'C', 'D'].includes(correctOptionId)) {
+        const cleanRaw = rawCorrect.replace(/^[A-Da-d][.)]\s*/, '').trim().toLowerCase();
+        const foundIdx = cleanOptions.findIndex(
+          (opt) => opt.toLowerCase() === cleanRaw
+        );
+        if (foundIdx !== -1) {
+          correctOptionId = letterKeys[foundIdx];
+        } else {
+          // Check math equivalence
+          const mathIdx = cleanOptions.findIndex((opt) =>
+            areMathExpressionsEquivalent(opt, cleanRaw)
+          );
+          if (mathIdx !== -1) {
+            correctOptionId = letterKeys[mathIdx];
+          } else {
+            correctOptionId = 'A';
+          }
+        }
+      }
+
+      const correctIndex = letterKeys.indexOf(correctOptionId);
+      const finalCorrectIndex = correctIndex !== -1 ? correctIndex : 0;
+      const finalCorrectAnswer = cleanOptions[finalCorrectIndex] || cleanOptions[0];
+
+      return {
+        id,
+        type,
+        question,
+        options: cleanOptions,
+        correctOptionId,
+        correctAnswer: finalCorrectAnswer,
+        explanation,
+        chapterRef,
+        difficulty,
+      };
+    }
+
+    if (type === 'true_false') {
+      const rawAns = String(q.correctAnswer || q.correctOptionId || '').toLowerCase();
+      const isBenar = ['benar', 'true', 'b', 't', '1', 'ya'].some((s) => rawAns.includes(s));
+      const val = isBenar ? 'Benar' : 'Salah';
+      return {
+        id,
+        type,
+        question,
+        options: ['Benar', 'Salah'],
+        correctOptionId: val,
+        correctAnswer: val,
+        explanation,
+        chapterRef,
+        difficulty,
+      };
+    }
+
+    if (type === 'short_answer') {
+      const cleanAns = String(q.correctAnswer || '').trim();
+      const acceptedAnswers = Array.isArray(q.acceptedAnswers)
+        ? q.acceptedAnswers.map((a: string) => String(a).trim())
+        : [cleanAns];
+      if (!acceptedAnswers.includes(cleanAns)) {
+        acceptedAnswers.push(cleanAns);
+      }
+      return {
+        id,
+        type,
+        question,
+        options: [],
+        correctAnswer: cleanAns,
+        acceptedAnswers,
+        explanation,
+        chapterRef,
+        difficulty,
+      };
+    }
+
+    return {
+      id,
+      type,
+      question,
+      options: q.options || [],
+      correctAnswer: q.correctAnswer || '',
+      explanation,
+      chapterRef,
+      difficulty,
+    };
+  });
 }
 
 // Helper: Calculate SHA-256 hash for document content
@@ -624,10 +903,24 @@ apiRouter.post('/generate-quiz', async (req, res) => {
 ${chapterTitle ? `Fokus khusus Bab: "${chapterTitle}".` : 'Mencakup seluruh materi.'}
 Tipe soal yang harus dibuat: ${typeDescriptions.join(', ')}.
 
-PENTING:
-- Buat soal yang mendalam dan relevan dengan materi kuliah berikut.
-- Sertakan kunci jawaban (correctAnswer) yang tepat dan penjelasan (explanation) komprehensif.
-- Output JSON array sesuai schema.
+PANDUAN KETAT AKURASI AKADEMIK, SOAL MATEMATIKA, & KONSISTENSI KUNCI JAWABAN:
+1. Pilihan Ganda (multiple_choice):
+   - Wajib sediakan tepat 4 pilihan (options) yang jelas tanpa awalan huruf "A. " atau "B. " di dalam teks string opsi.
+   - Tetapkan "correctOptionId" sebagai "A", "B", "C", atau "D" sesuai urutan opsi ke-1, 2, 3, atau 4.
+   - Tetapkan "correctAnswer" sebagai teks persis dari opsi yang benar tersebut.
+   - PENTING UNTUK SOAL MATEMATIKA / LOGIKA / FORMULA:
+     * Tuliskan langkah penurunan rumus / penyelesaian secara mendalam dan matematis di "explanation".
+     * Opsi yang benar (correctAnswer) WAJIB sama persis dengan hasil akhir di "explanation".
+     * Opsi pengecoh (distractor) harus salah secara matematis dan TIDAK BOLEH ekuivalen secara aljabar dengan jawaban benar.
+     * Contoh: Diketahui f(x) = x + 2 dan (g o f)(x) = 2x^2 + 4x - 3. Substitusi t = x + 2 => x = t - 2 menghasilkan g(t) = 2(t - 2)^2 + 4(t - 2) - 3 = 2t^2 - 8t + 8 + 4t - 8 - 3 = 2t^2 - 4t - 3. Jadi kunci jawaban WAJIB g(x) = 2x^2 - 4x - 3. Opsi pengecoh seperti 2x^2 - 7 atau 2x^2 + 1 adalah salah.
+2. Benar / Salah (true_false):
+   - options: ["Benar", "Salah"]
+   - correctAnswer & correctOptionId: WAJIB "Benar" atau "Salah".
+3. Isian Singkat (short_answer):
+   - options: []
+   - correctAnswer: kata kunci atau formula baku.
+   - acceptedAnswers: variasi penulisan atau notasi alternatif yang valid.
+4. Output JSON array sesuai schema.
 
 Materi Sumber:
 ${contextText}`;
@@ -646,9 +939,18 @@ ${contextText}`;
           options: {
             type: Type.ARRAY,
             items: { type: Type.STRING },
-            description: 'Wajib ada 4 opsi untuk multiple_choice, 2 opsi (Benar, Salah) untuk true_false, kosong untuk short_answer',
+            description: '4 opsi untuk multiple_choice (tanpa prefix huruf), 2 opsi (Benar, Salah) untuk true_false, kosong untuk short_answer',
+          },
+          correctOptionId: {
+            type: Type.STRING,
+            description: 'A, B, C, atau D untuk pilihan ganda. Benar atau Salah untuk true_false.',
           },
           correctAnswer: { type: Type.STRING },
+          acceptedAnswers: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+            description: 'Variasi sinonim atau notasi alternatif untuk isian singkat',
+          },
           explanation: { type: Type.STRING },
           chapterRef: { type: Type.STRING },
           difficulty: { type: Type.STRING },
@@ -660,12 +962,13 @@ ${contextText}`;
     const aiResult = await callGeminiWithFallback({
       model,
       prompt,
-      systemInstruction: 'Pembuat Ujian Akademik Universitas yang ketat dan presisi. Output JSON sesuai schema.',
+      systemInstruction: 'Pembuat Ujian Akademik Universitas yang ketat, akurat secara matematis dan ilmiah. Output JSON sesuai schema.',
       responseSchema,
       useThinkingLow: true,
     });
 
-    const fullQuestions = JSON.parse(aiResult.text || '[]');
+    const parsedRaw = JSON.parse(aiResult.text || '[]');
+    const fullQuestions = validateAndNormalizeQuizQuestions(parsedRaw);
     const totalMs = Date.now() - t0;
 
     // Stateless encrypted token containing full answers (resilient across serverless lambda instances)
@@ -710,7 +1013,7 @@ apiRouter.post('/evaluate-quiz', (req, res) => {
     let fullQuestions = resolveQuizSession(quizSessionId);
 
     if (!fullQuestions && clientQuestionsFallback && Array.isArray(clientQuestionsFallback)) {
-      fullQuestions = clientQuestionsFallback;
+      fullQuestions = validateAndNormalizeQuizQuestions(clientQuestionsFallback);
     }
 
     if (!fullQuestions || !Array.isArray(fullQuestions)) {
@@ -724,7 +1027,7 @@ apiRouter.post('/evaluate-quiz', (req, res) => {
 
     const evaluatedQuestions = fullQuestions.map((q: any) => {
       const userAns = (userAnswers[q.id] || '').trim();
-      const isCorrect = evaluateAnswerCorrectness(userAns, q.correctAnswer, q.type);
+      const isCorrect = evaluateAnswerCorrectness(userAns, q);
 
       if (isCorrect) {
         correctCount++;
@@ -761,8 +1064,12 @@ apiRouter.post('/evaluate-quiz', (req, res) => {
 // -------------------------------------------------------------
 apiRouter.post('/check-single-question', (req, res) => {
   try {
-    const { quizSessionId, questionId, userAnswer = '' } = req.body;
-    const fullQuestions = resolveQuizSession(quizSessionId);
+    const { quizSessionId, questionId, userAnswer = '', clientQuestionsFallback } = req.body;
+    let fullQuestions = resolveQuizSession(quizSessionId);
+
+    if (!fullQuestions && clientQuestionsFallback && Array.isArray(clientQuestionsFallback)) {
+      fullQuestions = validateAndNormalizeQuizQuestions(clientQuestionsFallback);
+    }
 
     if (!fullQuestions) {
       return res.status(404).json({ error: 'Sesi kuis tidak ditemukan atau telah kedaluwarsa.' });
@@ -773,10 +1080,11 @@ apiRouter.post('/check-single-question', (req, res) => {
       return res.status(404).json({ error: 'Soal tidak ditemukan dalam sesi kuis.' });
     }
 
-    const isCorrect = evaluateAnswerCorrectness(userAnswer, q.correctAnswer, q.type);
+    const isCorrect = evaluateAnswerCorrectness(userAnswer, q);
     return res.json({
       questionId: q.id,
       isCorrect,
+      correctOptionId: q.correctOptionId,
       correctAnswer: q.correctAnswer,
       explanation: q.explanation,
     });

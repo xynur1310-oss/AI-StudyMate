@@ -22,6 +22,7 @@ import {
 import confetti from 'canvas-confetti';
 import { MaterialAnalysis, QuizQuestion, QuizResult, QuizDifficulty, QuizType, TimingStats } from '../types';
 import { Storage } from '../utils/storage';
+import { MathRenderer, StructuredExplanation } from './MathRenderer';
 
 interface QuizViewProps {
   material: MaterialAnalysis | null;
@@ -62,10 +63,10 @@ export const QuizView: React.FC<QuizViewProps> = ({
   // User input answers - state is strictly decoupled from solutions
   const [userAnswers, setUserAnswers] = useState<Record<string, string>>({});
 
-  // Practice mode: checked status per question (strictly explicit on-demand check)
   interface PracticeItemEvaluation {
     evaluated: boolean;
     isCorrect: boolean;
+    correctOptionId?: string;
     correctAnswer: string;
     explanation: string;
     showExplanation: boolean; // default false: explanation stays hidden until user clicks "Lihat Pembahasan"
@@ -79,6 +80,9 @@ export const QuizView: React.FC<QuizViewProps> = ({
   const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [timingStats, setTimingStats] = useState<TimingStats | null>(null);
+
+  // Review screen filter
+  const [reviewFilter, setReviewFilter] = useState<'all' | 'correct' | 'incorrect'>('all');
 
   // Visibilities of explanations in final review (default FALSE so keys are hidden initially)
   const [expandedExplanations, setExpandedExplanations] = useState<Record<string, boolean>>({});
@@ -241,6 +245,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
           quizSessionId,
           questionId: qId,
           userAnswer: userAns,
+          clientQuestionsFallback: quizQuestions,
         }),
       });
 
@@ -254,6 +259,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
         [qId]: {
           evaluated: true,
           isCorrect: res.isCorrect,
+          correctOptionId: res.correctOptionId,
           correctAnswer: res.correctAnswer,
           explanation: res.explanation,
           showExplanation: false, // KEPT HIDDEN UNTIL USER CLICKS "Lihat Pembahasan"
@@ -314,6 +320,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
         body: JSON.stringify({
           quizSessionId,
           userAnswers,
+          clientQuestionsFallback: quizQuestions,
         }),
       });
 
@@ -673,8 +680,8 @@ export const QuizView: React.FC<QuizViewProps> = ({
 
           {/* Question Card */}
           <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs">
-            <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-relaxed">
-              {currentQ.question}
+            <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-relaxed overflow-x-auto">
+              <MathRenderer content={currentQ.question} />
             </h3>
 
             {/* Answer Options according to question type */}
@@ -682,23 +689,40 @@ export const QuizView: React.FC<QuizViewProps> = ({
               {currentQ.type === 'multiple_choice' &&
                 currentQ.options?.map((opt, optIdx) => {
                   const isSelected = userAnswers[currentQ.id] === opt;
+                  const optionLetters = ['A', 'B', 'C', 'D', 'E'];
+                  const letter = optionLetters[optIdx] || String(optIdx + 1);
+
                   return (
                     <button
                       key={optIdx}
                       type="button"
                       onClick={() => handleAnswerChange(currentQ.id, opt)}
-                      className={`w-full text-left p-4 rounded-xl border text-xs sm:text-sm font-medium transition-all flex items-center justify-between ${
+                      className={`group w-full text-left p-4 sm:p-4.5 rounded-2xl border text-xs sm:text-sm font-medium transition-all flex items-center justify-between gap-3 ${
                         isSelected
-                          ? 'border-indigo-600 bg-indigo-50/70 text-indigo-950 font-semibold shadow-xs'
-                          : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50/60 text-slate-700'
+                          ? 'border-indigo-600 bg-indigo-50/70 text-indigo-950 font-semibold ring-1 ring-indigo-500/20 shadow-xs'
+                          : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50/70 text-slate-700 bg-white'
                       }`}
                     >
-                      <span>{opt}</span>
+                      <div className="flex items-center gap-3 overflow-x-auto min-w-0 flex-1">
+                        <span
+                          className={`w-8 h-8 rounded-xl font-bold flex items-center justify-center text-xs shrink-0 transition-all ${
+                            isSelected
+                              ? 'bg-indigo-600 text-white shadow-xs'
+                              : 'bg-slate-100 text-slate-600 group-hover:bg-indigo-100 group-hover:text-indigo-800'
+                          }`}
+                        >
+                          {letter}
+                        </span>
+                        <div className="overflow-x-auto flex-1 py-0.5">
+                          <MathRenderer content={opt} />
+                        </div>
+                      </div>
+
                       <span
-                        className={`w-5 h-5 rounded-full border flex items-center justify-center text-xs shrink-0 ml-3 ${
+                        className={`w-5 h-5 rounded-full border flex items-center justify-center text-xs shrink-0 ml-2 transition-all ${
                           isSelected
                             ? 'border-indigo-600 bg-indigo-600 text-white'
-                            : 'border-slate-300'
+                            : 'border-slate-300 group-hover:border-indigo-300'
                         }`}
                       >
                         {isSelected && '✓'}
@@ -716,10 +740,10 @@ export const QuizView: React.FC<QuizViewProps> = ({
                         key={opt}
                         type="button"
                         onClick={() => handleAnswerChange(currentQ.id, opt)}
-                        className={`p-4 rounded-xl border text-sm font-bold text-center transition-all ${
+                        className={`p-4 sm:p-5 rounded-2xl border text-sm font-bold text-center transition-all ${
                           isSelected
-                            ? 'border-indigo-600 bg-indigo-50 text-indigo-900 shadow-xs'
-                            : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                            ? 'border-indigo-600 bg-indigo-50 text-indigo-950 ring-1 ring-indigo-500/20 shadow-xs'
+                            : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50 text-slate-700 bg-white'
                         }`}
                       >
                         {opt}
@@ -731,15 +755,15 @@ export const QuizView: React.FC<QuizViewProps> = ({
 
               {currentQ.type === 'short_answer' && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
                     Ketik jawaban singkat Anda:
                   </label>
                   <input
                     type="text"
                     value={userAnswers[currentQ.id] || ''}
                     onChange={(e) => handleAnswerChange(currentQ.id, e.target.value)}
-                    placeholder="Tuliskan kata kunci di sini..."
-                    className="w-full p-3.5 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    placeholder="Tuliskan kata kunci atau nilai rumus..."
+                    className="w-full p-3.5 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-white"
                   />
                   <p className="text-[11px] text-slate-400 mt-1">
                     Kunci jawaban tetap tersembunyi hingga kuis dikumpulkan atau diperiksa.
@@ -749,15 +773,15 @@ export const QuizView: React.FC<QuizViewProps> = ({
 
               {currentQ.type === 'essay' && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
                     Uraikan penjelasan analitis Anda:
                   </label>
                   <textarea
                     rows={6}
                     value={userAnswers[currentQ.id] || ''}
                     onChange={(e) => handleAnswerChange(currentQ.id, e.target.value)}
-                    placeholder="Tuliskan penjelasan Anda..."
-                    className="w-full p-3.5 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    placeholder="Tuliskan langkah dan penjelasan Anda..."
+                    className="w-full p-3.5 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-white"
                   />
                 </div>
               )}
@@ -785,7 +809,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
                       ) : (
                         <>
                           <CheckCircle2Icon className="w-3.5 h-3.5" />
-                          <span>Kumpulkan & Evaluasi Soal Ini</span>
+                          <span>Periksa Jawaban Soal Ini</span>
                         </>
                       )}
                     </button>
@@ -794,13 +818,13 @@ export const QuizView: React.FC<QuizViewProps> = ({
                   /* Evaluated state: explanation strictly hidden until clicking "Lihat Pembahasan" */
                   <div className="space-y-3">
                     <div
-                      className={`p-4 rounded-xl text-xs space-y-3 border animate-in fade-in ${
+                      className={`p-4 sm:p-5 rounded-2xl text-xs space-y-3 border transition-all ${
                         currentPracticeChecked.isCorrect
-                          ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
-                          : 'bg-amber-50/80 border-amber-200 text-amber-950'
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
+                          : 'bg-rose-50 border-rose-200 text-rose-950'
                       }`}
                     >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                         <div className="flex items-center gap-2 font-bold text-sm">
                           {currentPracticeChecked.isCorrect ? (
                             <>
@@ -809,13 +833,13 @@ export const QuizView: React.FC<QuizViewProps> = ({
                             </>
                           ) : (
                             <>
-                              <XCircleIcon className="w-4 h-4 text-amber-600 shrink-0" />
-                              <span className="text-amber-800">Jawaban Anda Kurang Tepat</span>
+                              <XCircleIcon className="w-4 h-4 text-rose-600 shrink-0" />
+                              <span className="text-rose-800">Jawaban Anda Kurang Tepat</span>
                             </>
                           )}
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <button
                             type="button"
                             onClick={() => togglePracticeExplanation(currentQ.id)}
@@ -825,8 +849,16 @@ export const QuizView: React.FC<QuizViewProps> = ({
                             <span>
                               {currentPracticeChecked.showExplanation
                                 ? 'Tutup Pembahasan'
-                                : 'Lihat Pembahasan & Kunci'}
+                                : 'Lihat Pembahasan'}
                             </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onOpenProblemSolver(currentQ.question)}
+                            className="px-3 py-1.5 rounded-lg bg-purple-50 border border-purple-200 hover:bg-purple-100 text-purple-700 text-xs font-bold transition-colors flex items-center gap-1"
+                          >
+                            <ZapIcon className="w-3 h-3" />
+                            <span>Analisis Mendalam AI</span>
                           </button>
                           <button
                             type="button"
@@ -839,16 +871,18 @@ export const QuizView: React.FC<QuizViewProps> = ({
                         </div>
                       </div>
 
-                      {/* Explanation displayed ONLY when user clicks "Lihat Pembahasan & Kunci" */}
+                      {/* Explanation displayed ONLY when user clicks "Lihat Pembahasan" */}
                       {currentPracticeChecked.showExplanation && (
-                        <div className="pt-3 border-t border-slate-200/60 space-y-2 animate-in fade-in">
-                          <div className="p-3 rounded-lg bg-white/90 border border-slate-200">
-                            <span className="font-bold text-slate-700">Kunci Jawaban: </span>
-                            <span className="font-semibold text-indigo-900">{currentPracticeChecked.correctAnswer}</span>
+                        <div className="pt-3 border-t border-slate-200/80 space-y-3">
+                          <div className="p-3.5 rounded-xl bg-white/95 border border-slate-200 flex items-start gap-2">
+                            <span className="font-bold text-indigo-900 shrink-0">Kunci Jawaban:</span>
+                            <div className="overflow-x-auto flex-1 font-semibold text-indigo-950">
+                              <MathRenderer content={currentPracticeChecked.correctAnswer} />
+                            </div>
                           </div>
-                          <div className="p-3 rounded-lg bg-white/90 border border-slate-200">
-                            <span className="font-bold text-slate-700 block mb-1">Pembahasan Lengkap:</span>
-                            <p className="text-slate-600 leading-relaxed">{currentPracticeChecked.explanation}</p>
+                          <div className="p-4 rounded-xl bg-white/95 border border-slate-200">
+                            <span className="font-bold text-slate-800 block mb-2">Langkah Pembahasan:</span>
+                            <StructuredExplanation explanation={currentPracticeChecked.explanation} />
                           </div>
                         </div>
                       )}
@@ -984,133 +1018,283 @@ export const QuizView: React.FC<QuizViewProps> = ({
 
           {/* Question Review List */}
           <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
               <div>
                 <h3 className="text-base font-bold text-slate-900">
-                  Pembahasan & Review Setiap Soal
+                  Pembahasan & Evaluasi Soal
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Kunci jawaban dan pembahasan dapat dibuka per soal menggunakan tombol di bawah ini.
+                  Periksa kunci jawaban, analisis langkah penyelesaian, dan bandingkan pilihan jawaban di bawah ini.
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  const allOpen = quizResult.questions.every((q) => expandedExplanations[q.id]);
-                  const nextState: Record<string, boolean> = {};
-                  quizResult.questions.forEach((q) => {
-                    nextState[q.id] = !allOpen;
-                  });
-                  setExpandedExplanations(nextState);
-                }}
-                className="self-start sm:self-auto text-xs font-semibold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-200 transition-colors flex items-center gap-1.5"
-              >
-                <EyeIcon className="w-3.5 h-3.5" />
-                <span>
-                  {quizResult.questions.every((q) => expandedExplanations[q.id])
-                    ? 'Tutup Semua Pembahasan'
-                    : 'Buka Semua Pembahasan'}
-                </span>
-              </button>
+              {/* Filter Tabs & Expand All */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center bg-slate-100 p-0.5 rounded-xl text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setReviewFilter('all')}
+                    className={`px-3 py-1 rounded-lg transition-all ${
+                      reviewFilter === 'all'
+                        ? 'bg-white text-slate-900 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Semua ({quizResult.totalQuestions})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReviewFilter('correct')}
+                    className={`px-3 py-1 rounded-lg transition-all ${
+                      reviewFilter === 'correct'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-emerald-700 hover:text-emerald-900'
+                    }`}
+                  >
+                    Benar ({quizResult.correctCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReviewFilter('incorrect')}
+                    className={`px-3 py-1 rounded-lg transition-all ${
+                      reviewFilter === 'incorrect'
+                        ? 'bg-rose-600 text-white shadow-xs'
+                        : 'text-rose-700 hover:text-rose-900'
+                    }`}
+                  >
+                    Kurang Tepat ({quizResult.incorrectCount})
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const allOpen = quizResult.questions.every((q) => expandedExplanations[q.id]);
+                    const nextState: Record<string, boolean> = {};
+                    quizResult.questions.forEach((q) => {
+                      nextState[q.id] = !allOpen;
+                    });
+                    setExpandedExplanations(nextState);
+                  }}
+                  className="text-xs font-semibold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-200 transition-colors flex items-center gap-1.5"
+                >
+                  <EyeIcon className="w-3.5 h-3.5" />
+                  <span>
+                    {quizResult.questions.every((q) => expandedExplanations[q.id])
+                      ? 'Tutup Semua Pembahasan'
+                      : 'Buka Semua Pembahasan'}
+                  </span>
+                </button>
+              </div>
             </div>
 
-            {quizResult.questions.map((q, idx) => {
-              const isCorrect = q.isCorrect ?? false;
-              const userAns = q.userAnswer || (quizResult.userAnswers[q.id] || '').trim();
-              const isExplanationOpen = !!expandedExplanations[q.id];
+            {quizResult.questions
+              .filter((q) => {
+                if (reviewFilter === 'correct') return q.isCorrect;
+                if (reviewFilter === 'incorrect') return !q.isCorrect;
+                return true;
+              })
+              .map((q, idx) => {
+                const isCorrect = q.isCorrect ?? false;
+                const userAns = (q.userAnswer || quizResult.userAnswers[q.id] || '').trim();
+                const isExplanationOpen = !!expandedExplanations[q.id];
+                const originalIndex = quizResult.questions.findIndex((orig) => orig.id === q.id);
 
-              return (
-                <div
-                  key={q.id}
-                  className={`bg-white rounded-2xl border p-5 sm:p-6 transition-all ${
-                    isCorrect
-                      ? 'border-emerald-200 bg-emerald-50/10'
-                      : 'border-rose-200 bg-rose-50/10'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-4 mb-3">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-bold ${
-                          isCorrect
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-rose-100 text-rose-800'
-                        }`}
-                      >
-                        {idx + 1}
-                      </span>
-                      <span className="text-xs font-semibold text-slate-400 capitalize">
-                        {q.type.replace('_', ' ')}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {isCorrect ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full">
-                          <CheckCircle2Icon className="w-3.5 h-3.5" />
-                          <span>Benar</span>
+                return (
+                  <div
+                    key={q.id}
+                    className={`bg-white rounded-2xl border p-5 sm:p-6 transition-all shadow-xs ${
+                      isCorrect
+                        ? 'border-emerald-200 bg-white'
+                        : 'border-rose-200 bg-white'
+                    }`}
+                  >
+                    {/* Header: Number, Type, Status Badge, and Action Buttons */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 ${
+                            isCorrect
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-rose-100 text-rose-800'
+                          }`}
+                        >
+                          {originalIndex + 1}
                         </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-xs font-bold text-rose-700 bg-rose-100 px-2.5 py-0.5 rounded-full">
-                          <XCircleIcon className="w-3.5 h-3.5" />
-                          <span>Kurang Tepat</span>
+                        <span className="text-xs font-semibold text-slate-500 capitalize bg-slate-100 px-2 py-0.5 rounded-md">
+                          {q.type.replace('_', ' ')}
                         </span>
-                      )}
+                        {isCorrect ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full">
+                            <CheckCircle2Icon className="w-3.5 h-3.5" />
+                            <span>Benar</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-xs font-bold text-rose-700 bg-rose-100 px-2.5 py-0.5 rounded-full">
+                            <XCircleIcon className="w-3.5 h-3.5" />
+                            <span>Kurang Tepat</span>
+                          </span>
+                        )}
+                      </div>
 
-                      <button
-                        onClick={() => toggleExplanation(q.id)}
-                        className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1"
-                      >
-                        <EyeIcon className="w-3 h-3" />
-                        <span>{isExplanationOpen ? 'Tutup Pembahasan' : 'Lihat Pembahasan'}</span>
-                      </button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleExplanation(q.id)}
+                          className="text-xs font-semibold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-200 transition-colors flex items-center gap-1.5"
+                        >
+                          <EyeIcon className="w-3.5 h-3.5" />
+                          <span>{isExplanationOpen ? 'Tutup Pembahasan' : 'Lihat Pembahasan'}</span>
+                        </button>
 
-                      <button
-                        onClick={() => onOpenProblemSolver(q.question)}
-                        className="text-[11px] font-semibold text-purple-600 hover:text-purple-800 bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg transition-colors"
-                      >
-                        Analisis Mendalam AI
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => onOpenProblemSolver(q.question)}
+                          className="text-xs font-semibold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg border border-purple-200 transition-colors flex items-center gap-1.5"
+                        >
+                          <ZapIcon className="w-3.5 h-3.5 text-purple-600" />
+                          <span>Analisis Mendalam AI</span>
+                        </button>
+                      </div>
                     </div>
-                  </div>
 
-                  <h4 className="text-sm sm:text-base font-bold text-slate-900 leading-relaxed mb-4">
-                    {q.question}
-                  </h4>
+                    {/* Question Text with KaTeX */}
+                    <h4 className="text-sm sm:text-base font-bold text-slate-900 leading-relaxed mb-5 overflow-x-auto">
+                      <MathRenderer content={q.question} />
+                    </h4>
 
-                  <div className="space-y-2 text-xs">
-                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2">
-                      <span className="font-bold text-slate-500 shrink-0">Jawaban Anda:</span>
-                      <span className={`font-semibold ${isCorrect ? 'text-emerald-700' : 'text-rose-700'}`}>
-                        {userAns || '(Tidak dijawab)'}
-                      </span>
-                    </div>
+                    {/* Multiple Choice Review Cards */}
+                    {q.type === 'multiple_choice' && q.options && q.options.length > 0 && (
+                      <div className="space-y-2.5 mb-4">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                          Pilihan Jawaban & Hasil Evaluasi:
+                        </div>
+                        {q.options.map((opt, optIdx) => {
+                          const optionLetters = ['A', 'B', 'C', 'D', 'E'];
+                          const letter = optionLetters[optIdx] || String(optIdx + 1);
+                          const isUserSelected = userAns === opt;
+                          const isCorrectKey =
+                            (q.correctAnswer && (q.correctAnswer === opt || q.correctAnswer.startsWith(letter + '.'))) ||
+                            (q.correctOptionId && (q.correctOptionId === letter || q.correctOptionId === opt));
 
-                    {isExplanationOpen && (
-                      <div className="p-3 rounded-xl bg-indigo-50/70 border border-indigo-200 flex items-start gap-2">
-                        <span className="font-bold text-indigo-800 shrink-0">Kunci Jawaban:</span>
-                        <span className="font-semibold text-indigo-950">{q.correctAnswer}</span>
+                          let cardStyle = 'border-slate-200 bg-white text-slate-700';
+                          let badgeText = null;
+                          let badgeStyle = '';
+
+                          if (isUserSelected && isCorrect) {
+                            cardStyle = 'border-emerald-300 bg-emerald-50 text-emerald-950 font-semibold ring-1 ring-emerald-400/30';
+                            badgeText = 'Jawaban Anda (Tepat) ✓';
+                            badgeStyle = 'bg-emerald-600 text-white';
+                          } else if (isUserSelected && !isCorrect) {
+                            cardStyle = 'border-rose-300 bg-rose-50 text-rose-950 font-medium ring-1 ring-rose-400/30';
+                            badgeText = 'Jawaban Anda (Kurang Tepat) ✕';
+                            badgeStyle = 'bg-rose-600 text-white';
+                          } else if (isCorrectKey) {
+                            cardStyle = 'border-emerald-400 bg-emerald-50/70 text-emerald-950 font-semibold ring-1 ring-emerald-400/20';
+                            badgeText = 'Kunci Jawaban yang Benar ✓';
+                            badgeStyle = 'bg-emerald-700 text-white';
+                          }
+
+                          return (
+                            <div
+                              key={optIdx}
+                              className={`p-3.5 sm:p-4 rounded-xl border text-xs sm:text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition-all ${cardStyle}`}
+                            >
+                              <div className="flex items-center gap-3 overflow-x-auto min-w-0 flex-1">
+                                <span
+                                  className={`w-7 h-7 rounded-lg font-bold flex items-center justify-center text-xs shrink-0 ${
+                                    isUserSelected && isCorrect
+                                      ? 'bg-emerald-600 text-white'
+                                      : isUserSelected && !isCorrect
+                                      ? 'bg-rose-600 text-white'
+                                      : isCorrectKey
+                                      ? 'bg-emerald-600 text-white'
+                                      : 'bg-slate-100 text-slate-600'
+                                  }`}
+                                >
+                                  {letter}
+                                </span>
+                                <div className="overflow-x-auto flex-1">
+                                  <MathRenderer content={opt} />
+                                </div>
+                              </div>
+
+                              {badgeText && (
+                                <span
+                                  className={`self-start sm:self-auto px-2.5 py-1 rounded-md text-[11px] font-bold shrink-0 ${badgeStyle}`}
+                                >
+                                  {badgeText}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* True/False or Short Answer Review Cards */}
+                    {q.type !== 'multiple_choice' && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 text-xs">
+                        <div
+                          className={`p-3.5 rounded-xl border flex flex-col justify-between ${
+                            isCorrect
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
+                              : 'bg-rose-50 border-rose-200 text-rose-950'
+                          }`}
+                        >
+                          <div className="font-bold text-slate-500 text-[11px] mb-1">Jawaban Anda:</div>
+                          <div className="font-semibold text-sm overflow-x-auto py-0.5">
+                            <MathRenderer content={userAns || '(Tidak dijawab)'} />
+                          </div>
+                          <div className="mt-2 text-[11px] font-bold">
+                            {isCorrect ? 'Status: Tepat ✓' : 'Status: Kurang Tepat ✕'}
+                          </div>
+                        </div>
+
+                        <div className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/70 text-indigo-950 flex flex-col justify-between">
+                          <div className="font-bold text-indigo-700 text-[11px] mb-1">Kunci Jawaban yang Benar:</div>
+                          <div className="font-bold text-sm overflow-x-auto py-0.5 text-indigo-900">
+                            <MathRenderer content={q.correctAnswer || '-'} />
+                          </div>
+                          <div className="mt-2 text-[11px] text-indigo-600 font-medium">
+                            Diverifikasi secara matematis
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Detailed Structured Discussion Box */}
+                    {isExplanationOpen && q.explanation && (
+                      <div className="mt-4 p-5 rounded-2xl bg-slate-50/90 border border-slate-200 text-xs space-y-3 animate-in fade-in">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                          <span className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                            <BookOpen className="w-4 h-4 text-indigo-600" />
+                            <span>Pembahasan & Langkah Penyelesaian</span>
+                          </span>
+                          {q.chapterRef && (
+                            <span className="text-[11px] text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-full font-semibold">
+                              Bab: {q.chapterRef}
+                            </span>
+                          )}
+                        </div>
+
+                        {q.correctAnswer && (
+                          <div className="p-3 rounded-xl bg-white border border-slate-200 flex items-start gap-2">
+                            <span className="font-bold text-indigo-900 shrink-0">Kesimpulan Kunci:</span>
+                            <div className="overflow-x-auto flex-1 font-semibold text-indigo-950">
+                              <MathRenderer content={q.correctAnswer} />
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="pt-1">
+                          <StructuredExplanation explanation={q.explanation} />
+                        </div>
                       </div>
                     )}
                   </div>
-
-                  {isExplanationOpen && q.explanation && (
-                    <div className="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-100 text-xs">
-                      <span className="font-bold text-slate-700 block mb-1">
-                        Penjelasan Berdasarkan Materi:
-                      </span>
-                      <p className="text-slate-600 leading-relaxed">{q.explanation}</p>
-                      {q.chapterRef && (
-                        <p className="text-[11px] text-indigo-600 font-medium mt-2">
-                          Referensi Bab: {q.chapterRef}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                );
+              })}
           </div>
         </div>
       )}
