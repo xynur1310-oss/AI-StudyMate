@@ -904,23 +904,28 @@ ${chapterTitle ? `Fokus khusus Bab: "${chapterTitle}".` : 'Mencakup seluruh mate
 Tipe soal yang harus dibuat: ${typeDescriptions.join(', ')}.
 
 PANDUAN KETAT AKURASI AKADEMIK, SOAL MATEMATIKA, & KONSISTENSI KUNCI JAWABAN:
-1. Pilihan Ganda (multiple_choice):
+1. FORMAT TEKS & SPASI:
+   - Pastikan teks pertanyaan ("question"), opsi, dan pembahasan ("explanation") memiliki SPASI LENGKAP antar kata, simbol matematika, dan kalimat.
+   - Jangan pernah menyatukan kata-kata tanpa spasi (misalnya: dilarang menulis "Grafikfungsikuadrat" atau "Jikakoefisienapadafungsi", wajib beri spasi: "Grafik fungsi kuadrat" atau "Jika koefisien a pada fungsi").
+   - Jika menuliskan rumus matematika di dalam kalimat, apit rumus dengan simbol dolar tunggal seperti $f(x) = x^2 - 5x + 6$ atau $f(x) = 0$ agar terpisah jelas dari teks sekitarnya.
+   - Pada "explanation", susun langkah-langkah pembahasan SECARA VERTIKAL KE BAWAH dengan penomoran langkah yang jelas dipisahkan baris baru (\n), contoh:
+     "Langkah Penyelesaian:\n1. Tentukan syarat titik potong terhadap sumbu x, yaitu f(x) = 0.\n2. Substitusikan fungsi kuadrat: x^2 - 5x + 6 = 0.\n3. Faktorkan persamaan kuadrat: (x - 2)(x - 3) = 0.\n4. Diperoleh nilai x = 2 atau x = 3.\nJadi, titik potong terhadap sumbu x adalah (2, 0) dan (3, 0)."
+2. Pilihan Ganda (multiple_choice):
    - Wajib sediakan tepat 4 pilihan (options) yang jelas tanpa awalan huruf "A. " atau "B. " di dalam teks string opsi.
    - Tetapkan "correctOptionId" sebagai "A", "B", "C", atau "D" sesuai urutan opsi ke-1, 2, 3, atau 4.
    - Tetapkan "correctAnswer" sebagai teks persis dari opsi yang benar tersebut.
    - PENTING UNTUK SOAL MATEMATIKA / LOGIKA / FORMULA:
-     * Tuliskan langkah penurunan rumus / penyelesaian secara mendalam dan matematis di "explanation".
      * Opsi yang benar (correctAnswer) WAJIB sama persis dengan hasil akhir di "explanation".
      * Opsi pengecoh (distractor) harus salah secara matematis dan TIDAK BOLEH ekuivalen secara aljabar dengan jawaban benar.
-     * Contoh: Diketahui f(x) = x + 2 dan (g o f)(x) = 2x^2 + 4x - 3. Substitusi t = x + 2 => x = t - 2 menghasilkan g(t) = 2(t - 2)^2 + 4(t - 2) - 3 = 2t^2 - 8t + 8 + 4t - 8 - 3 = 2t^2 - 4t - 3. Jadi kunci jawaban WAJIB g(x) = 2x^2 - 4x - 3. Opsi pengecoh seperti 2x^2 - 7 atau 2x^2 + 1 adalah salah.
-2. Benar / Salah (true_false):
+     * Contoh: Diketahui f(x) = x + 2 dan (g o f)(x) = 2x^2 + 4x - 3. Substitusi t = x + 2 => x = t - 2 menghasilkan g(t) = 2(t - 2)^2 + 4(t - 2) - 3 = 2t^2 - 8t + 8 + 4t - 8 - 3 = 2t^2 - 4t - 3. Kunci jawaban WAJIB g(x) = 2x^2 - 4x - 3. Opsi 2x^2 - 7 atau 2x^2 + 1 adalah salah.
+3. Benar / Salah (true_false):
    - options: ["Benar", "Salah"]
    - correctAnswer & correctOptionId: WAJIB "Benar" atau "Salah".
-3. Isian Singkat (short_answer):
+4. Isian Singkat (short_answer):
    - options: []
    - correctAnswer: kata kunci atau formula baku.
    - acceptedAnswers: variasi penulisan atau notasi alternatif yang valid.
-4. Output JSON array sesuai schema.
+5. Output JSON array sesuai schema.
 
 Materi Sumber:
 ${contextText}`;

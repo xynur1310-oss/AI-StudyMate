@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { MaterialAnalysis, ProblemSolution } from '../types';
 import { Storage } from '../utils/storage';
+import { MathRenderer } from './MathRenderer';
 
 interface ProblemSolverViewProps {
   material: MaterialAnalysis | null;
@@ -325,19 +326,19 @@ export const ProblemSolverView: React.FC<ProblemSolverViewProps> = ({
                   <h5 className="font-bold text-sm text-slate-900">{step.title}</h5>
                 </div>
 
-                <p className="text-xs sm:text-sm text-slate-700 leading-relaxed mb-3">
-                  {step.explanation}
-                </p>
+                <div className="text-xs sm:text-sm text-slate-700 leading-relaxed mb-3 break-words whitespace-normal">
+                  <MathRenderer content={step.explanation} />
+                </div>
 
                 {step.formulaOrCode && (
                   <div className="my-3 p-3.5 rounded-xl bg-slate-900 text-indigo-200 font-mono text-xs overflow-x-auto">
-                    <pre className="whitespace-pre-wrap">{step.formulaOrCode}</pre>
+                    <MathRenderer content={step.formulaOrCode} className="text-indigo-200" />
                   </div>
                 )}
 
-                <div className="p-3 rounded-xl bg-indigo-50/60 border border-indigo-100 text-xs text-indigo-900">
+                <div className="p-3 rounded-xl bg-indigo-50/60 border border-indigo-100 text-xs text-indigo-900 break-words whitespace-normal">
                   <span className="font-bold mr-1">Alasan Mengapa Langkah Ini Digunakan:</span>
-                  <span>{step.reasoning}</span>
+                  <MathRenderer content={step.reasoning} />
                 </div>
               </div>
             ))}
@@ -346,12 +347,12 @@ export const ProblemSolverView: React.FC<ProblemSolverViewProps> = ({
           {/* Final Answer Highlight Box */}
           <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-6 shadow-xs">
             <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm mb-2">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
               <span>Kesimpulan / Jawaban Akhir yang Jelas:</span>
             </div>
-            <p className="text-xs sm:text-sm text-emerald-950 font-semibold leading-relaxed whitespace-pre-line">
-              {solution.finalAnswer}
-            </p>
+            <div className="text-xs sm:text-sm text-emerald-950 font-semibold leading-relaxed break-words whitespace-normal">
+              <MathRenderer content={solution.finalAnswer} />
+            </div>
             {solution.chapterReference && (
               <div className="mt-3 text-[11px] font-medium text-emerald-700">
                 Dasar Materi: {solution.chapterReference}

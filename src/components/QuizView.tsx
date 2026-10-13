@@ -680,7 +680,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
 
           {/* Question Card */}
           <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs">
-            <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-relaxed overflow-x-auto">
+            <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-relaxed break-words whitespace-normal">
               <MathRenderer content={currentQ.question} />
             </h3>
 
@@ -703,7 +703,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
                           : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50/70 text-slate-700 bg-white'
                       }`}
                     >
-                      <div className="flex items-center gap-3 overflow-x-auto min-w-0 flex-1">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
                         <span
                           className={`w-8 h-8 rounded-xl font-bold flex items-center justify-center text-xs shrink-0 transition-all ${
                             isSelected
@@ -713,7 +713,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
                         >
                           {letter}
                         </span>
-                        <div className="overflow-x-auto flex-1 py-0.5">
+                        <div className="flex-1 min-w-0 py-0.5 break-words whitespace-normal">
                           <MathRenderer content={opt} />
                         </div>
                       </div>
@@ -1159,7 +1159,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
                     </div>
 
                     {/* Question Text with KaTeX */}
-                    <h4 className="text-sm sm:text-base font-bold text-slate-900 leading-relaxed mb-5 overflow-x-auto">
+                    <h4 className="text-sm sm:text-base font-bold text-slate-900 leading-relaxed mb-5 break-words whitespace-normal">
                       <MathRenderer content={q.question} />
                     </h4>
 
@@ -1200,7 +1200,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
                               key={optIdx}
                               className={`p-3.5 sm:p-4 rounded-xl border text-xs sm:text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition-all ${cardStyle}`}
                             >
-                              <div className="flex items-center gap-3 overflow-x-auto min-w-0 flex-1">
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
                                 <span
                                   className={`w-7 h-7 rounded-lg font-bold flex items-center justify-center text-xs shrink-0 ${
                                     isUserSelected && isCorrect
@@ -1214,7 +1214,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
                                 >
                                   {letter}
                                 </span>
-                                <div className="overflow-x-auto flex-1">
+                                <div className="flex-1 min-w-0 py-0.5 break-words whitespace-normal">
                                   <MathRenderer content={opt} />
                                 </div>
                               </div>
